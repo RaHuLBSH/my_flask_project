@@ -388,5 +388,9 @@ def clv_by_cohorts():
     return jsonify(list(clv_cohorts))
 
 
+@app.route('/')
+def index():
+    return "Welcome to the Flask API"
+
 if __name__ == '__main__':  
-   app.run(debug=True)
+   app.run(host='0.0.0.0', port=8080)
