@@ -2,14 +2,12 @@ from flask import Flask, jsonify, request
 from pymongo import MongoClient
 from flask_cors import CORS
 import requests
-import redis
-import json
 
 app = Flask(__name__)
 CORS(app)
 client = MongoClient("mongodb+srv://db_user_read:LdmrVA5EDEv4z3Wr@cluster0.n10ox.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client.RQ_Analytics
-cache = redis.Redis(host='localhost', port=6379, db=0)
+cache = {}
 
 @app.route('/sales_over_time', methods=['GET'])
 def sales_over_time():
@@ -300,6 +298,7 @@ def repeat_customers_over_time():
 
 @app.route('/customer_distribution', methods=['GET'])
 def customer_distribution():
+    # Fetch customer data from MongoDB
     distribution = db.shopifyCustomers.aggregate([
         {
             '$group': {
@@ -323,13 +322,13 @@ def customer_distribution():
     for customer in customer_data:
         city = customer['city']
         
-        # Check if the result is in the cache
-        cached_result = cache.get(city)
-        if cached_result:
-            latitude, longitude = json.loads(cached_result)
+        if city in cache:
+            # Use cached result
+            latitude, longitude = cache[city]
             customer['latitude'] = latitude
             customer['longitude'] = longitude
         else:
+            # Make a request to the geocoding API
             response = requests.get(base_url, params={'q': city, 'key': api_key})
             if response.status_code == 402:
                 return jsonify({'error': 'Payment required for API access'}), 402
@@ -340,8 +339,8 @@ def customer_distribution():
                 latitude, longitude = geometry['lat'], geometry['lng']
                 customer['latitude'] = latitude
                 customer['longitude'] = longitude
-                # Store the result in the cache
-                cache.set(city, json.dumps((latitude, longitude)))
+                # Store result in cache
+                cache[city] = (latitude, longitude)
             else:
                 customer['latitude'] = None
                 customer['longitude'] = None
